@@ -1,90 +1,148 @@
 import { ContractRepository } from "../data/inMemoryContractRepository";
 import {
   ContractExpiryNotificationPayload,
-  NotificationService,
+  EmailService,
 } from "./notificationService";
+import { Contract, ReminderEvent, ReminderRunSummary } from "../types/contract";
 
-type ReminderServiceOptions = {
-  reminderDays: number[];
-  lookaheadHours: number;
-};
+export function getLeadTimeDaysForCadence(cadence: Contract["cadence"]): number | null {
+  if (cadence === "annual") {
+    return 30;
+  }
 
-export type ReminderRunResult = {
-  processedContracts: number;
-  remindersSent: number;
-  skipped: number;
-};
+  if (cadence === "monthly") {
+    return 7;
+  }
 
-const DEFAULT_OPTIONS: ReminderServiceOptions = {
-  reminderDays: [30, 14, 7, 1],
-  lookaheadHours: 24,
-};
+  return null;
+}
+
+export function calculateThresholdUtc(expiresAtUtc: Date, leadTimeDays: number): Date {
+  const threshold = new Date(expiresAtUtc.getTime());
+  threshold.setUTCDate(threshold.getUTCDate() - leadTimeDays);
+  return threshold;
+}
+
+export function isRenewalEffectiveAtRunTime(contract: Contract, runAtUtc: Date): boolean {
+  if (contract.renewalStatus !== "renewed") {
+    return false;
+  }
+
+  if (!contract.renewalEffectiveAtUtc) {
+    return false;
+  }
+
+  return runAtUtc >= contract.renewalEffectiveAtUtc;
+}
+
+export function isEligibleThreshold(runAtUtc: Date, thresholdAtUtc: Date): boolean {
+  return runAtUtc.getTime() === thresholdAtUtc.getTime();
+}
+
+export function isEligibleCatchUp(
+  runAtUtc: Date,
+  thresholdAtUtc: Date,
+  expiresAtUtc: Date
+): boolean {
+  return runAtUtc > thresholdAtUtc && runAtUtc < expiresAtUtc;
+}
 
 export class ContractExpiryReminderService {
   constructor(
     private readonly repository: ContractRepository,
-    private readonly notificationService: NotificationService,
-    private readonly options: ReminderServiceOptions = DEFAULT_OPTIONS
+    private readonly emailService: EmailService
   ) {}
 
-  async run(now = new Date()): Promise<ReminderRunResult> {
+  async run(runAtUtc = new Date()): Promise<ReminderRunSummary> {
     const contracts = await this.repository.listContracts();
-    const reminderWindowEnd = new Date(
-      now.getTime() + this.options.lookaheadHours * 60 * 60 * 1000
-    );
 
-    let remindersSent = 0;
-    let skipped = 0;
+    let notifiedCount = 0;
+    let skippedRenewedCount = 0;
+    let skippedDuplicateCount = 0;
+    let skippedIneligibleCount = 0;
+    let catchUpSentCount = 0;
 
     for (const contract of contracts) {
-      for (const reminderDay of this.options.reminderDays) {
-        const reminderAt = new Date(contract.expiresAt.getTime());
-        reminderAt.setUTCDate(reminderAt.getUTCDate() - reminderDay);
+      const leadTimeDays = getLeadTimeDaysForCadence(contract.cadence);
 
-        const isInsideReminderWindow =
-          reminderAt >= now && reminderAt < reminderWindowEnd;
+      if (leadTimeDays === null) {
+        skippedIneligibleCount += 1;
+        continue;
+      }
 
-        if (!isInsideReminderWindow) {
-          continue;
-        }
+      if (isRenewalEffectiveAtRunTime(contract, runAtUtc)) {
+        skippedRenewedCount += 1;
+        continue;
+      }
 
-        const alreadyNotified = contract.reminderHistory.some((entry) => {
-          return (
-            entry.daysBefore === reminderDay &&
-            entry.expiresAtIso === contract.expiresAt.toISOString()
-          );
-        });
+      const thresholdAtUtc = calculateThresholdUtc(contract.expiresAtUtc, leadTimeDays);
 
-        if (alreadyNotified) {
-          skipped += 1;
-          continue;
-        }
+      if (runAtUtc >= contract.expiresAtUtc) {
+        skippedIneligibleCount += 1;
+        continue;
+      }
 
-        const payload: ContractExpiryNotificationPayload = {
-          contractId: contract.id,
-          contractTitle: contract.title,
-          ownerName: contract.owner.name,
-          ownerEmail: contract.owner.email,
-          expiresAtIso: contract.expiresAt.toISOString(),
-          daysBefore: reminderDay,
-        };
+      const thresholdHit = isEligibleThreshold(runAtUtc, thresholdAtUtc);
+      const catchUpEligible = isEligibleCatchUp(
+        runAtUtc,
+        thresholdAtUtc,
+        contract.expiresAtUtc
+      );
 
-        await this.notificationService.sendContractExpiryReminder(payload);
-        await this.repository.recordReminder(
-          contract.id,
-          reminderDay,
-          contract.expiresAt.toISOString(),
-          now.toISOString()
-        );
+      if (!thresholdHit && !catchUpEligible) {
+        skippedIneligibleCount += 1;
+        continue;
+      }
 
-        remindersSent += 1;
+      const alreadySent = await this.repository.hasReminderEvent(
+        contract.termId,
+        leadTimeDays
+      );
+
+      if (alreadySent) {
+        skippedDuplicateCount += 1;
+        continue;
+      }
+
+      const payload: ContractExpiryNotificationPayload = {
+        contractId: contract.id,
+        contractTermId: contract.termId,
+        contractTitle: contract.title,
+        ownerName: contract.owner.name,
+        ownerEmail: contract.owner.email,
+        expiresAtUtc: contract.expiresAtUtc.toISOString(),
+        leadTimeDays,
+        catchUp: catchUpEligible,
+      };
+
+      const reminderEvent: ReminderEvent = {
+        reminderEventId: `${contract.termId}:${leadTimeDays}`,
+        contractId: contract.id,
+        contractTermId: contract.termId,
+        leadTimeDays,
+        thresholdAtUtc: thresholdAtUtc.toISOString(),
+        notifiedAtUtc: runAtUtc.toISOString(),
+        dispatchStatus: "sent",
+        catchUp: catchUpEligible,
+      };
+
+      await this.emailService.sendContractExpiryEmail(payload);
+      await this.repository.recordReminderEvent(reminderEvent);
+
+      notifiedCount += 1;
+
+      if (catchUpEligible) {
+        catchUpSentCount += 1;
       }
     }
 
     return {
       processedContracts: contracts.length,
-      remindersSent,
-      skipped,
+      notifiedCount,
+      skippedRenewedCount,
+      skippedDuplicateCount,
+      skippedIneligibleCount,
+      catchUpSentCount,
     };
   }
 }

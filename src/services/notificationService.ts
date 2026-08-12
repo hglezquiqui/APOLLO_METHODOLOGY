@@ -1,25 +1,24 @@
 export type ContractExpiryNotificationPayload = {
   contractId: string;
+  contractTermId: string;
   contractTitle: string;
   ownerName: string;
   ownerEmail: string;
-  expiresAtIso: string;
-  daysBefore: number;
+  expiresAtUtc: string;
+  leadTimeDays: number;
+  catchUp: boolean;
 };
 
-export interface NotificationService {
-  sendContractExpiryReminder(
+export interface EmailService {
+  sendContractExpiryEmail(
     payload: ContractExpiryNotificationPayload
   ): Promise<void>;
 }
 
-export class ConsoleNotificationService implements NotificationService {
-  async sendContractExpiryReminder(
+export class ConsoleEmailService implements EmailService {
+  async sendContractExpiryEmail(
     payload: ContractExpiryNotificationPayload
   ): Promise<void> {
-    console.log(
-      "[contract-expiry-reminder]",
-      JSON.stringify(payload, null, 2)
-    );
+    console.log("[contract-expiry-email]", JSON.stringify(payload, null, 2));
   }
 }

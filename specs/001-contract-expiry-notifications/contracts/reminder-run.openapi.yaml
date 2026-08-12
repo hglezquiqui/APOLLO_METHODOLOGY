@@ -1,0 +1,92 @@
+openapi: 3.0.3
+info:
+  title: Contract Expiry Reminder Run API
+  version: 1.0.0
+  description: Trigger and inspect a contract expiry reminder evaluation run.
+paths:
+  /contracts/expiry-reminders/run:
+    post:
+      summary: Run contract expiry reminder evaluation
+      operationId: runContractExpiryReminders
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                runAtUtc:
+                  type: string
+                  format: date-time
+                  description: Optional UTC execution timestamp override.
+            example:
+              runAtUtc: "2026-08-12T16:00:00.000Z"
+      responses:
+        '200':
+          description: Reminder run completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationRunSummary'
+        '400':
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected processing error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    NotificationRunSummary:
+      type: object
+      required:
+        - processedContracts
+        - notifiedCount
+        - skippedRenewedCount
+        - skippedDuplicateCount
+        - skippedIneligibleCount
+        - catchUpSentCount
+      properties:
+        processedContracts:
+          type: integer
+          minimum: 0
+          description: Number of contracts evaluated in this run.
+        notifiedCount:
+          type: integer
+          minimum: 0
+          description: Number of reminder emails sent.
+        skippedRenewedCount:
+          type: integer
+          minimum: 0
+          description: Contracts skipped because renewal was effective at run time.
+        skippedDuplicateCount:
+          type: integer
+          minimum: 0
+          description: Contracts skipped because the reminder event had already been sent.
+        skippedIneligibleCount:
+          type: integer
+          minimum: 0
+          description: Contracts skipped due to timing/cadence ineligibility.
+        catchUpSentCount:
+          type: integer
+          minimum: 0
+          description: Reminder emails sent as late catch-up events.
+      example:
+        processedContracts: 4
+        notifiedCount: 2
+        skippedRenewedCount: 1
+        skippedDuplicateCount: 0
+        skippedIneligibleCount: 1
+        catchUpSentCount: 1
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
