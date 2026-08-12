@@ -1,50 +1,86 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report
+- Version change: template -> 1.0.0
+- Modified principles:
+	- [PRINCIPLE_1_NAME] -> I. Approved Stack Boundaries
+	- [PRINCIPLE_2_NAME] -> II. Verification and Minimum Coverage Gate
+	- [PRINCIPLE_3_NAME] -> III. Date and Time Data Integrity
+	- [PRINCIPLE_4_NAME] -> IV. Financial Data Safety and Precision
+	- [PRINCIPLE_5_NAME] -> V. Protected Artifacts and Human Approval Boundaries
+- Added sections:
+	- Stack Constraints
+	- Delivery and Review Workflow
+- Removed sections:
+	- None
+- Follow-up TODOs:
+	- None
+-->
+
+# Apollo Pilot Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Approved Stack Boundaries
+All implementation work MUST stay within the approved stack unless a human explicitly approves a
+stack amendment. The default backend stack is Node.js + TypeScript + Express, with relational
+storage integrations constrained to approved drivers and schemas already accepted by project
+owners. Introducing a new runtime, framework, persistence engine, or orchestration dependency
+without approval is forbidden. Rationale: the pilot prioritizes predictability, onboarding speed,
+and operational consistency over framework experimentation.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. Verification and Minimum Coverage Gate
+Every change set MUST include automated tests that validate behavior introduced or modified by the
+change. The project minimum is 80% line coverage and 80% branch coverage at the repository level,
+and no modified module may reduce its own coverage from the pre-change baseline. Any temporary
+exception MUST be explicitly approved by a human and documented in the pull request. Rationale:
+the pilot is decision-critical and requires repeatable quality signals before merge.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. Date and Time Data Integrity
+All persisted timestamps MUST use ISO 8601 with UTC (for example, trailing Z), and internal
+comparison logic MUST evaluate in UTC unless a documented business rule defines a specific local
+timezone. Owner-facing schedules that depend on locale MUST carry explicit timezone metadata;
+implicit server-local timezone behavior is prohibited. Date-only business fields MUST specify the
+boundary convention (start-of-day or end-of-day) in code and tests. Rationale: silent timezone
+drift is a high-risk failure mode for contract and compliance workflows.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. Financial Data Safety and Precision
+Financial values MUST NOT be stored or computed using binary floating-point for canonical records.
+Monetary amounts MUST be represented as fixed-precision decimal types or integer minor units,
+always paired with an explicit ISO currency code. Any transformation between display values and
+stored values MUST be covered by tests, including rounding behavior. Rationale: deterministic
+financial math is mandatory for trust and auditability.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. Protected Artifacts and Human Approval Boundaries
+The agent MUST NOT modify protected artifacts without explicit human approval in the current
+conversation. Protected artifacts include this constitution, CI/CD pipelines, deployment
+infrastructure definitions, production database migration history, authentication/authorization
+rules, secrets handling, and legal/compliance policy documents. The agent MUST also avoid
+destructive git operations and irreversible data changes unless explicitly approved. Rationale:
+pilot governance requires clear human control over high-impact and security-sensitive changes.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+## Stack Constraints
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+1. TypeScript is the mandatory language for service code unless a written exception is approved.
+2. Express is the standard HTTP service framework for pilot APIs.
+3. Data contracts MUST be strongly typed and validated at system boundaries.
+4. New third-party dependencies MUST be justified by necessity and security-reviewed in PR notes.
+5. Runtime and build tooling changes MUST include migration steps and rollback guidance.
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+## Delivery and Review Workflow
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+1. All work MUST be traceable to a spec or explicit human request in-session.
+2. Pull requests MUST include: scope summary, risk assessment, test evidence, and coverage report.
+3. Any change touching date logic or financial logic MUST include at least one edge-case test.
+4. Any exception to this constitution MUST include approval evidence and an expiration date.
+5. Reviewers MUST block merge when a constitutional rule is violated or unverified.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This constitution supersedes conflicting local conventions for the Apollo pilot project.
+Amendments require explicit human approval, a documented rationale, and a semantic-version update
+under this policy: MAJOR for incompatible governance changes, MINOR for new principles or
+materially expanded obligations, and PATCH for clarifications that do not change obligations.
+Compliance reviews MUST occur for every pull request and at milestone boundaries. Violations MUST
+be remediated before release unless a time-bound exception is approved by project owners.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-08-12 | **Last Amended**: 2026-08-12
