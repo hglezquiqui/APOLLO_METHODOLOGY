@@ -29,3 +29,9 @@ coverage/
 
 # Spec Kit local state (keep .specify/memory and specs/ versioned, ignore scratch)
 .specify/.cache/
+
+node_modules/
+package-lock.json
+package.json
+tsconfig.json
+
